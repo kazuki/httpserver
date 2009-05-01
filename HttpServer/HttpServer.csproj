@@ -1,0 +1,68 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="3.5" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProductVersion>9.0.30729</ProductVersion>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{F886911A-ACBD-40A0-8122-A9DD18122B65}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>Kazuki.Net.HttpServer</RootNamespace>
+    <AssemblyName>Kazuki.Net.HttpServer</AssemblyName>
+    <TargetFrameworkVersion>v2.0</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="NLog, Version=1.0.0.505, Culture=neutral, PublicKeyToken=5120e14c03d0593c, processorArchitecture=MSIL" />
+    <Reference Include="System" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="AssemblyInfo.cs" />
+    <Compile Include="CometHandler.cs" />
+    <Compile Include="CometInfo.cs" />
+    <Compile Include="CompressMiddleware.cs" />
+    <Compile Include="Embed\HttpConnection.cs" />
+    <Compile Include="Embed\HttpRequest.cs" />
+    <Compile Include="Embed\HttpServer.cs" />
+    <Compile Include="HttpException.cs" />
+    <Compile Include="HttpHeaderNames.cs" />
+    <Compile Include="HttpMethod.cs" />
+    <Compile Include="HttpResponseHeader.cs" />
+    <Compile Include="HttpServer.cs" />
+    <Compile Include="HttpServerBase.cs" />
+    <Compile Include="HttpStatusCode.cs" />
+    <Compile Include="HttpUtility.cs" />
+    <Compile Include="HttpVersion.cs" />
+    <Compile Include="IHttpApplication.cs" />
+    <Compile Include="IHttpRequest.cs" />
+    <Compile Include="IHttpServer.cs" />
+    <Compile Include="MIMEDatabase.cs" />
+    <Compile Include="ServerHelper.cs" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
+       Other similar extension points exist, see Microsoft.Common.targets.
+  <Target Name="BeforeBuild">
+  </Target>
+  <Target Name="AfterBuild">
+  </Target>
+  -->
+</Project>
