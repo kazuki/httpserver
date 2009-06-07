@@ -205,7 +205,7 @@ namespace Kazuki.Net.HttpServer.Embed
 					}
 				}
 
-				_logger.Warn ("HTTP {0} {1}", (int)header.Status, ServerHelper.GetStatusDescription (header.Status));
+				_logger.Trace ("HTTP {0} {1}", (int)header.Status, ServerHelper.GetStatusDescription (header.Status));
 				ProcessResponse (conn, req, header, result, ref keepAlive, ref header_sent);
 				//byte[] raw = header.CreateResponseHeaderBytes ();
 				//conn.Send (raw);

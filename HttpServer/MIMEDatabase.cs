@@ -15,6 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+using System;
 using System.Collections.Generic;
 
 namespace Kazuki.Net.HttpServer
@@ -30,10 +31,21 @@ namespace Kazuki.Net.HttpServer
 			_mapping["js"] = "text/javascript";
 			_mapping["css"] = "text/css";
 			_mapping["xml"] = "text/xml";
+			_mapping["html"] = "text/html";
 
 			_mapping["png"] = "image/png";
 			_mapping["jpg"] = _mapping["jpeg"] = "image/jpeg";
 			_mapping["gif"] = "image/gif";
+		}
+
+		public static void RegisterMIME (string ext, string mime)
+		{
+			if (ext == null || mime == null)
+				throw new ArgumentNullException ();
+			if (ext.Length > 0 && ext[0] == '.') ext = ext.Substring (1);
+			if (ext.Length == 0 || !mime.Contains ("/"))
+				throw new ArgumentException ();
+			_mapping[ext] = mime;
 		}
 
 		public static string GetMIMEType (string ext)
