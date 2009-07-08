@@ -59,7 +59,7 @@ namespace Kazuki.Net.HttpServer.Embed
 				if (!FillReceiveBuffer ())
 					break;
 				int copy_size = Math.Min (_recvFilled - _recvOffset, size - received);
-				Buffer.BlockCopy (_recvBuffer, _recvOffset, buffer, offset, copy_size);
+				Buffer.BlockCopy (_recvBuffer, _recvOffset, buffer, offset + received, copy_size);
 				_recvOffset += copy_size;
 				received += copy_size;
 			}
