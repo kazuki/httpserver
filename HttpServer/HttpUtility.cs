@@ -86,6 +86,13 @@ namespace Kazuki.Net.HttpServer
 			}
 		}
 
+		public static Dictionary<string, string> ParseUrlEncodedStringToDictionary (string query, Encoding e)
+		{
+			Dictionary<string, string> dic = new Dictionary<string,string> ();
+			ParseUrlEncodedString (query, dic, e);
+			return dic;
+		}
+
 		public static void ParseUrlEncodedString (string body, NameValueCollection collection, Encoding e)
 		{
 			string[] items = body.Split ('&');
@@ -96,6 +103,13 @@ namespace Kazuki.Net.HttpServer
 				else if (tmp.Length == 1)
 					collection.Add (UrlDecode (tmp[0], e), "");
 			}
+		}
+
+		public static NameValueCollection ParseUrlEncodedStringToNameValueCollection (string query, Encoding e)
+		{
+			NameValueCollection c = new NameValueCollection ();
+			ParseUrlEncodedString (query, c, e);
+			return c;
 		}
 	}
 }
