@@ -78,7 +78,7 @@ namespace Kazuki.Net.HttpServer.Embed
 				int pos = query.IndexOf ("'#'");
 				if (pos >= 0)
 					query = query.Substring (0, pos);
-				ServerHelper.ParseQueryString (query, req._queries);
+				HttpUtility.ParseUrlEncodedString (query, req._queries, Encoding.UTF8);
 			}
 
 			if (req._headers.ContainsKey (HttpHeaderNames.Cookie)) {

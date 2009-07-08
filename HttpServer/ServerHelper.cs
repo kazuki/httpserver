@@ -15,25 +15,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-using System;
-using System.Collections.Generic;
-
 namespace Kazuki.Net.HttpServer
 {
 	static class ServerHelper
 	{
-		public static void ParseQueryString (string query, Dictionary<string, string> dic)
-		{
-			String[] items = query.Split ('&');
-			foreach (String item in items) {
-				string[] tmp = item.Split ('=');
-				if (tmp.Length == 2)
-					dic[tmp[0]] = tmp[1];
-				else if (tmp.Length == 1)
-					dic[tmp[0]] = "";
-			}
-		}
-
 		public static HttpMethod ToHttpMethod (string method)
 		{
 			switch (method.ToUpper ()) {

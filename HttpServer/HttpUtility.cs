@@ -16,6 +16,8 @@
  */
 
 using System;
+using System.Collections.Generic;
+using System.Collections.Specialized;
 using System.Text;
 
 namespace Kazuki.Net.HttpServer
@@ -70,6 +72,30 @@ namespace Kazuki.Net.HttpServer
 		static byte FromHex (char high, char low)
 		{
 			return (byte)((Uri.FromHex (high) << 4) | Uri.FromHex (low));
+		}
+
+		public static void ParseUrlEncodedString (string query, Dictionary<string, string> dic, Encoding e)
+		{
+			string[] items = query.Split ('&');
+			foreach (string item in items) {
+				string[] tmp = item.Split ('=');
+				if (tmp.Length == 2)
+					dic[UrlDecode (tmp[0], e)] = UrlDecode (tmp[1], e);
+				else if (tmp.Length == 1)
+					dic[UrlDecode (tmp[0], e)] = "";
+			}
+		}
+
+		public static void ParseUrlEncodedString (string body, NameValueCollection collection, Encoding e)
+		{
+			string[] items = body.Split ('&');
+			foreach (string item in items) {
+				string[] tmp = item.Split ('=');
+				if (tmp.Length == 2)
+					collection.Add (UrlDecode (tmp[0], e), UrlDecode (tmp[1], e));
+				else if (tmp.Length == 1)
+					collection.Add (UrlDecode (tmp[0], e), "");
+			}
 		}
 	}
 }
