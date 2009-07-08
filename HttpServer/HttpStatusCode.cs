@@ -20,6 +20,8 @@ namespace Kazuki.Net.HttpServer
 	public enum HttpStatusCode : int
 	{
 		OK = 200,
+		Found = 302,
+		SeeOther = 303,
 		NotModified = 304,
 		BadRequest = 400,
 		Unauthorized = 401,
