@@ -89,7 +89,7 @@ namespace Kazuki.Net.HttpServer.Embed
 				lock (_keepAliveWaits) {
 					list = new List<Socket> (_keepAliveWaits.Keys);
 				}
-				Socket.Select (list, null, null, 1000000);
+				Socket.Select (list, null, null, 10000);
 				lock (_keepAliveWaits) {
 					for (int i = 0; i < list.Count; i ++) {
 						HttpConnection c = _keepAliveWaits [list[i]];
