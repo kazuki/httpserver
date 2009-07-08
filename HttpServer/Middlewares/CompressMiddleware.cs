@@ -18,7 +18,7 @@
 using System.IO;
 using System.IO.Compression;
 
-namespace Kazuki.Net.HttpServer
+namespace Kazuki.Net.HttpServer.Middlewares
 {
 	public class CompressMiddleware : IHttpApplication
 	{

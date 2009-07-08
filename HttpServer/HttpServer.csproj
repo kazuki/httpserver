@@ -33,12 +33,12 @@
   <ItemGroup>
     <Reference Include="NLog, Version=1.0.0.505, Culture=neutral, PublicKeyToken=5120e14c03d0593c, processorArchitecture=MSIL" />
     <Reference Include="System" />
+    <Reference Include="System.XML" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AssemblyInfo.cs" />
     <Compile Include="CometHandler.cs" />
     <Compile Include="CometInfo.cs" />
-    <Compile Include="CompressMiddleware.cs" />
     <Compile Include="Embed\HttpConnection.cs" />
     <Compile Include="Embed\HttpRequest.cs" />
     <Compile Include="Embed\HttpServer.cs" />
@@ -54,8 +54,10 @@
     <Compile Include="IHttpApplication.cs" />
     <Compile Include="IHttpRequest.cs" />
     <Compile Include="IHttpServer.cs" />
+    <Compile Include="Middlewares\CompressMiddleware.cs" />
     <Compile Include="MIMEDatabase.cs" />
     <Compile Include="ServerHelper.cs" />
+    <Compile Include="TemplateEngines\XslTemplateEngine.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
