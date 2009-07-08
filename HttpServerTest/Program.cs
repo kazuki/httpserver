@@ -8,8 +8,7 @@ namespace Kazuki.Net.HttpServer.Test
 		static void Main (string[] args)
 		{
 			IHttpApplication app;
-			app = new CompressMiddleware (new App ());
-			//app = new App ();
+			app = new App ();
 
 			using (IHttpServer server = HttpServer.CreateEmbedHttpServer (app, null, true, false, true, 8080, 128)) {
 				Console.ReadLine ();
