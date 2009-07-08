@@ -37,6 +37,7 @@ namespace Kazuki.Net.HttpServer.Embed
 		Dictionary<string, string> _cookies = new Dictionary<string,string> ();
 		DateTime _ifModifiedSince = DateTime.MinValue;
 		HttpConnection _client;
+		byte[] _body = null;
 
 		private HttpRequest () { }
 		public static HttpRequest Create (HttpConnection client)
@@ -142,6 +143,36 @@ namespace Kazuki.Net.HttpServer.Embed
 
 		public Dictionary<string, string> Cookies {
 			get { return _cookies; }
+		}
+
+		public bool HasContentBody ()
+		{
+			return _headers.ContainsKey (HttpHeaderNames.ContentLength)
+				|| _headers.ContainsKey (HttpHeaderNames.TransferEncoding)
+				|| _headers.ContainsKey (HttpHeaderNames.ContentType);
+		}
+
+		public byte[] GetContentBody (int max_size)
+		{
+			if (_body != null)
+				return _body;
+
+			string str;
+			int size;
+			if (!_headers.TryGetValue (HttpHeaderNames.ContentLength, out str) || !int.TryParse (str, out size))
+				size = -1;
+			if (size == 0) {
+				_body = new byte[size];
+				return _body;
+			}
+			if (size > max_size)
+				throw new OutOfMemoryException ();
+			if (size < 0)
+				throw new HttpException (HttpStatusCode.LengthRequired); // Not supported
+			_body = new byte[size];
+			if (_client.ReceiveBytes (_body, 0, size) != size)
+				throw new HttpException (HttpStatusCode.BadRequest);
+			return _body;
 		}
 
 		#endregion

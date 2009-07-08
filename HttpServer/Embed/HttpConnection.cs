@@ -48,15 +48,34 @@ namespace Kazuki.Net.HttpServer.Embed
 		#region Socket Methods
 		public int ReceiveByte ()
 		{
+			if (!FillReceiveBuffer ())
+				return -1;
+			return _recvBuffer[_recvOffset++];
+		}
+		public int ReceiveBytes (byte[] buffer, int offset, int size)
+		{
+			int received = 0;
+			while (received < size) {
+				if (!FillReceiveBuffer ())
+					break;
+				int copy_size = Math.Min (_recvFilled - _recvOffset, size - received);
+				Buffer.BlockCopy (_recvBuffer, _recvOffset, buffer, offset, copy_size);
+				_recvOffset += copy_size;
+				received += copy_size;
+			}
+			return received;
+		}
+		bool FillReceiveBuffer ()
+		{
 			if (_recvOffset >= _recvFilled) {
 				if (!_sock.Poll (-1, SelectMode.SelectRead))
-					return -1;
+					return false;
 				_recvFilled = _sock.Receive (_recvBuffer, 0, _recvBuffer.Length, SocketFlags.None);
 				_recvOffset = 0;
 				if (_recvFilled <= 0)
-					return -1;
+					return false;
 			}
-			return _recvBuffer[_recvOffset ++];
+			return true;
 		}
 		public void Send (byte[] raw)
 		{

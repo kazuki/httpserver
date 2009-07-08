@@ -32,5 +32,8 @@ namespace Kazuki.Net.HttpServer
 		Dictionary<string, string> Headers { get; }
 		Dictionary<string, string> QueryData { get; }
 		Dictionary<string, string> Cookies { get; }
+
+		bool HasContentBody ();
+		byte[] GetContentBody (int max_size);
 	}
 }
