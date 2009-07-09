@@ -243,6 +243,8 @@ namespace Kazuki.Net.HttpServer.Embed
 			if (keepAlive && header.GetNotNullValue (HttpHeaderNames.ContentLength).Length == 0 && !header.GetNotNullValue (HttpHeaderNames.TransferEncoding).ToLower ().Equals ("chunked")) {
 				keepAlive = false;
 				header[HttpHeaderNames.Connection] = "close";
+			} else if (header[HttpHeaderNames.Connection] == "close") {
+				keepAlive = false;
 			}
 
 			byte[] raw = header.CreateResponseHeaderBytes ();
