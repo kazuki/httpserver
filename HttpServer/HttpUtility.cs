@@ -61,6 +61,8 @@ namespace Kazuki.Net.HttpServer
 				if (str[i] == '%') {
 					raw[q] = FromHex (str[i + 1], str[i + 2]);
 					i += 2;
+				} else if (str[i] == '+') {
+					raw[q] = (byte)' ';
 				} else {
 					raw[q] = (byte)str[i];
 				}
