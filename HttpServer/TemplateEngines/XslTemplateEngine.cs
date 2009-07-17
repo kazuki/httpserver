@@ -32,7 +32,7 @@ namespace Kazuki.Net.HttpServer.TemplateEngines
 		Dictionary<string, XslCache> _cache = new Dictionary<string,XslCache> ();
 		ReaderWriterLock _cacheLock = new ReaderWriterLock ();
 
-		public object Render (IHttpServer server, IHttpRequest req, HttpResponseHeader res, XmlDocument doc, string xsl_path)
+		public object Render (IHttpRequest req, HttpResponseHeader res, XmlDocument doc, string xsl_path)
 		{
 			XslCache cache;
 			_cacheLock.AcquireReaderLock (Timeout.Infinite);
