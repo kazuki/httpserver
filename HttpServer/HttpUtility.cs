@@ -88,6 +88,16 @@ namespace Kazuki.Net.HttpServer
 			}
 		}
 
+		public static Dictionary<string, string> ParseUrlEncodedStringToDictionary (byte[] ascii_query)
+		{
+			return ParseUrlEncodedStringToDictionary (ascii_query, Encoding.UTF8);
+		}
+
+		public static Dictionary<string, string> ParseUrlEncodedStringToDictionary (byte[] ascii_query, Encoding e)
+		{
+			return ParseUrlEncodedStringToDictionary (Encoding.ASCII.GetString (ascii_query), e);
+		}
+
 		public static Dictionary<string, string> ParseUrlEncodedStringToDictionary (string query, Encoding e)
 		{
 			Dictionary<string, string> dic = new Dictionary<string,string> ();
