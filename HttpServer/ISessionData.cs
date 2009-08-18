@@ -17,25 +17,12 @@
 
 using System;
 using System.Collections.Generic;
-using System.Net;
 
 namespace Kazuki.Net.HttpServer
 {
-	public interface IHttpRequest
+	public interface ISessionData
 	{
-		HttpMethod HttpMethod { get; }
-		HttpVersion HttpVersion { get; }
-		Uri Url { get; }
-
-		IPEndPoint RemoteEndPoint { get; }
-
-		Dictionary<string, string> Headers { get; }
-		Dictionary<string, string> QueryData { get; }
-		Dictionary<string, string> Cookies { get; }
-
-		bool HasContentBody ();
-		byte[] GetContentBody (int max_size);
-
-		ISessionData Session { get; set; }
+		string ID { get; }
+		Dictionary<string, object> State { get; }
 	}
 }

@@ -38,6 +38,7 @@ namespace Kazuki.Net.HttpServer.Embed
 		DateTime _ifModifiedSince = DateTime.MinValue;
 		HttpConnection _client;
 		byte[] _body = null;
+		ISessionData _session;
 
 		private HttpRequest () { }
 		public static HttpRequest Create (HttpConnection client)
@@ -173,6 +174,11 @@ namespace Kazuki.Net.HttpServer.Embed
 			if (_client.ReceiveBytes (_body, 0, size) != size)
 				throw new HttpException (HttpStatusCode.BadRequest);
 			return _body;
+		}
+
+		public ISessionData Session {
+			get { return _session; }
+			set { _session = value;}
 		}
 
 		#endregion

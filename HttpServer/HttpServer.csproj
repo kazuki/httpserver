@@ -33,6 +33,7 @@
   <ItemGroup>
     <Reference Include="NLog, Version=1.0.0.505, Culture=neutral, PublicKeyToken=5120e14c03d0593c, processorArchitecture=MSIL" />
     <Reference Include="System" />
+    <Reference Include="System.Data" />
     <Reference Include="System.XML" />
   </ItemGroup>
   <ItemGroup>
@@ -54,7 +55,9 @@
     <Compile Include="IHttpApplication.cs" />
     <Compile Include="IHttpRequest.cs" />
     <Compile Include="IHttpServer.cs" />
+    <Compile Include="ISessionData.cs" />
     <Compile Include="Middlewares\CompressMiddleware.cs" />
+    <Compile Include="Middlewares\SessionMiddleware.cs" />
     <Compile Include="MIMEDatabase.cs" />
     <Compile Include="ServerHelper.cs" />
     <Compile Include="TemplateEngines\XslTemplateEngine.cs" />
