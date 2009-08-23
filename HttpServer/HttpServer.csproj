@@ -56,6 +56,7 @@
     <Compile Include="IHttpRequest.cs" />
     <Compile Include="IHttpServer.cs" />
     <Compile Include="ISessionData.cs" />
+    <Compile Include="ISessionTransaction.cs" />
     <Compile Include="Middlewares\CompressMiddleware.cs" />
     <Compile Include="Middlewares\SessionMiddleware.cs" />
     <Compile Include="MIMEDatabase.cs" />

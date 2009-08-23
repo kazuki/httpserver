@@ -29,13 +29,17 @@ namespace Kazuki.Net.HttpServer.Middlewares
 	{
 		const string COOKIE_SESSION_ID = "ksid";
 		const string COOKIE_TOKEN = "ktid";
-		static readonly TimeSpan COOKIE_EXPIRES = TimeSpan.FromDays (365 * 10);
+		static readonly string COOKIE_EXPIRES = DateTime.UtcNow.Add (TimeSpan.FromDays (365 * 32)).ToString ("r");
 		const int SessionIdBytes = 32;
 		const int TokenBytes = 32;
 
+		const string SQL_CREATE_TABLE = "CREATE TABLE IF NOT EXISTS SessionData (id TEXT, key TEXT, data BLOB, PRIMARY KEY (id, key));";
+		const string SQL_SELECT = "SELECT data FROM SessionData WHERE id=:id AND key=:key;";
+		const string SQL_UPDATE = "INSERT OR REPLACE INTO SessionData (id, key, data) VALUES (:id, :key, :data);";
+		const string SQL_DELETE = "DELETE FROM SessionData WHERE id=:id AND key=:key;";
+
 		CreateDatabaseConnectionDelegate _createDb;
 		IHttpApplication _app;
-		LRU _cache;
 
 		static RNGCryptoServiceProvider _rng = new RNGCryptoServiceProvider ();
 
@@ -45,14 +49,16 @@ namespace Kazuki.Net.HttpServer.Middlewares
 				throw new ArgumentNullException ();
 			_createDb = createdb;
 			_app = app;
-			_cache = new LRU (32);
-			_cache.PageOut += UpdateDatabase;
 
 			using (IDbConnection connection = createdb ())
 			using (IDbTransaction transaction = connection.BeginTransaction (IsolationLevel.Serializable))
 			using (IDbCommand cmd = connection.CreateCommand ()) {
-				cmd.CommandText = "CREATE TABLE IF NOT EXISTS SessionStateStore (id TEXT PRIMARY KEY, expired INTEGER, state BLOB);";
+				cmd.CommandText = "DROP TABLE IF EXISTS SessionStateStore;";
 				cmd.ExecuteNonQuery ();
+
+				cmd.CommandText = SQL_CREATE_TABLE;
+				cmd.ExecuteNonQuery ();
+
 				transaction.Commit ();
 			}
 		}
@@ -60,79 +66,15 @@ namespace Kazuki.Net.HttpServer.Middlewares
 		public object Process (IHttpServer server, IHttpRequest req, HttpResponseHeader res)
 		{
 			string sessionId;
-			SessionData data = null;
 			if (!req.Cookies.TryGetValue (COOKIE_SESSION_ID, out sessionId)) {
 				byte[] raw = new byte[SessionIdBytes];
 				_rng.GetBytes (raw);
 				sessionId = ToHexString (raw);
 				res[HttpHeaderNames.SetCookie] = COOKIE_SESSION_ID + "=" + sessionId +
-					"; expires=" + DateTime.UtcNow.Add (COOKIE_EXPIRES).ToString ("r") +
-					"; path=/";
-			} else {
-				data = _cache.Get (sessionId);
-				if (data == null)
-					data = QueryFromDatabase (sessionId);
+					"; expires=" + COOKIE_EXPIRES + "; path=/";
 			}
-			if (data == null)
-				data = new SessionData (sessionId, new Dictionary<string, object> ());
-			req.Session = data;
-			try {
-				return _app.Process (server, req, res);
-			} finally {
-				_cache.Set (sessionId, data);
-			}
-		}
-
-		SessionData QueryFromDatabase (string sessionId)
-		{
-			using (IDbConnection connection = _createDb ())
-			using (IDbTransaction transaction = connection.BeginTransaction (IsolationLevel.ReadCommitted))
-			using (IDbCommand cmd = connection.CreateCommand ()) {
-				IDataParameter param = cmd.CreateParameter ();
-				param.Value = sessionId;
-				cmd.CommandText = "SELECT state FROM SessionStateStore WHERE id = ?";
-				cmd.Parameters.Add (param);
-
-				byte[] binary = cmd.ExecuteScalar () as byte[];
-				if (binary != null) {
-					BinaryFormatter formatter = new BinaryFormatter ();
-					try {
-						using (MemoryStream ms = new MemoryStream (binary)) {
-							Dictionary<string, object> state = formatter.Deserialize (ms) as Dictionary<string, object>;
-							if (state != null)
-								return new SessionData (sessionId, state);
-						}
-					} catch {}
-				}
-			}
-			return null;
-		}
-
-		void UpdateDatabase (object sender, SessionData[] data)
-		{
-			using (IDbConnection connection = _createDb ())
-			using (IDbTransaction transaction = connection.BeginTransaction (IsolationLevel.Serializable))
-			using (IDbCommand cmd = connection.CreateCommand ()) {
-				cmd.CommandText = "INSERT OR REPLACE INTO SessionStateStore (id, state) VALUES (?, ?)";
-				IDataParameter param1 = cmd.CreateParameter ();
-				IDataParameter param2 = cmd.CreateParameter ();
-				cmd.Parameters.Add (param1);
-				cmd.Parameters.Add (param2);
-
-				BinaryFormatter formatter = new BinaryFormatter ();
-				for (int i = 0; i < data.Length; i ++) {
-					param1.Value = data[i].ID;
-					using (MemoryStream ms = new MemoryStream ()) {
-						formatter.Serialize (ms, data[i].State);
-						ms.Close ();
-						param2.Value = ms.ToArray ();
-					}
-					try {
-						cmd.ExecuteNonQuery ();
-					} catch {}
-				}
-				transaction.Commit ();
-			}
+			req.Session = new SessionData (sessionId, _createDb);
+			return _app.Process (server, req, res);
 		}
 
 		static string ToHexString (byte[] raw)
@@ -145,47 +87,172 @@ namespace Kazuki.Net.HttpServer.Middlewares
 
 		public void Dispose ()
 		{
-			_cache.ForceDropAll ();
 		}
 
 		class SessionData : ISessionData
 		{
 			string _id;
-			Dictionary<string, object> _state;
+			CreateDatabaseConnectionDelegate _create;
 
-			public SessionData (string id, Dictionary<string, object> state)
+			public SessionData (string id, CreateDatabaseConnectionDelegate create)
 			{
 				_id = id;
-				_state = state;
+				_create = create;
 			}
 
 			public string ID {
 				get { return _id; }
 			}
 
-			public Dictionary<string, object> State {
-				get { return _state; }
+			public ISessionTransaction BeginTransaction (IsolationLevel isolation)
+			{
+				return DbTransaction.Create (this, _create, isolation);
+			}
+
+			public object ReadState (string key)
+			{
+				using (DbTransaction transaction = DbTransaction.Create (this, _create, IsolationLevel.ReadCommitted)) {
+					return ReadState (key, transaction);
+				}
+			}
+
+			public object ReadState (string key, ISessionTransaction transaction)
+			{
+				DbTransaction t = (DbTransaction)transaction;
+
+				using (IDbCommand cmd = t.Connection.CreateCommand ()) {
+					cmd.CommandText = SQL_SELECT;
+
+					IDataParameter p_id = cmd.CreateParameter (), p_key = cmd.CreateParameter ();
+					p_id.ParameterName = "id";
+					p_key.ParameterName = "key";
+					p_id.Value = _id;
+					p_key.Value = key;
+					cmd.Parameters.Add (p_id);
+					cmd.Parameters.Add (p_key);
+
+					using (IDataReader reader = cmd.ExecuteReader ()) {
+						if (reader.Read ()) {
+							try {
+								BinaryFormatter formatter = new BinaryFormatter ();
+								using (MemoryStream ms = new MemoryStream ((byte[])reader.GetValue (0))) {
+									return formatter.Deserialize (ms);
+								}
+							} catch {}
+						}
+					}
+				}
+				return null;
+			}
+
+			public void UpdateState (string key, object state)
+			{
+				using (ISessionTransaction transaction = DbTransaction.Create (this, _create, IsolationLevel.Serializable)) {
+					UpdateState (key, state, transaction);
+				}
+			}
+
+			public void UpdateState (string key, object state, ISessionTransaction transaction)
+			{
+				DbTransaction t = (DbTransaction)transaction;
+
+				using (IDbCommand cmd = t.Connection.CreateCommand ()) {
+					cmd.CommandText = (state == null ? SQL_DELETE : SQL_UPDATE);
+
+					IDataParameter p_id = cmd.CreateParameter (), p_key = cmd.CreateParameter ();
+					p_id.ParameterName = "id";
+					p_key.ParameterName = "key";
+					p_id.Value = _id;
+					p_key.Value = key;
+					cmd.Parameters.Add (p_id);
+					cmd.Parameters.Add (p_key);
+
+					if (state != null) {
+						IDataParameter p_data = cmd.CreateParameter ();
+						p_data.ParameterName = "data";
+						using (MemoryStream ms = new MemoryStream ()) {
+							BinaryFormatter formatter = new BinaryFormatter ();
+							formatter.Serialize (ms, state);
+							ms.Close ();
+							p_data.Value = ms.ToArray ();
+						}
+						cmd.Parameters.Add (p_data);
+					}
+
+					cmd.ExecuteNonQuery ();
+				}
+			}
+
+			class DbTransaction : ISessionTransaction
+			{
+				IDbConnection _connection;
+				IDbTransaction _transaction;
+				ISessionData _session;
+
+				public static DbTransaction Create (ISessionData session, CreateDatabaseConnectionDelegate create, IsolationLevel level)
+				{
+					DbTransaction t = new DbTransaction ();
+					t._session = session;
+					t._connection = create ();
+					t._transaction = t.Connection.BeginTransaction (level);
+					return t;
+				}
+
+				public void Commit ()
+				{
+					_transaction.Commit ();
+				}
+
+				public void Rollback ()
+				{
+					_transaction.Rollback ();
+				}
+				
+				public object ReadState (string key)
+				{
+					return _session.ReadState (key, this);
+				}
+
+				public void UpdateState (string key, object state)
+				{
+					_session.UpdateState (key, state, this);
+				}
+
+				public IDbConnection Connection {
+					get { return _connection; }
+				}
+
+				public IDbTransaction Transaction {
+					get { return _transaction; }
+				}
+
+				public void Dispose ()
+				{
+					_transaction.Dispose ();
+					_connection.Dispose ();
+				}
 			}
 		}
 
-		class LRU
+#if false
+		class LRU<T> where T : class
 		{
-			LinkedList<SessionData> _lru;
-			Dictionary<string, LinkedListNode<SessionData>> _dic;
+			LinkedList<T> _lru;
+			Dictionary<string, LinkedListNode<T>> _dic;
 			int _capacity;
-			public event LRUPageOutEventHandler PageOut;
+			public event LRUPageOutEventHandler<T> PageOut;
 
 			public LRU (int capacity)
 			{
-				_lru = new LinkedList<SessionData> ();
-				_dic = new Dictionary<string,LinkedListNode<SessionData>> (capacity);
+				_lru = new LinkedList<T> ();
+				_dic = new Dictionary<string,LinkedListNode<T>> (capacity);
 				_capacity = capacity;
 			}
 
-			public SessionData Get (string id)
+			public T Get (string id)
 			{
 				lock (_dic) {
-					LinkedListNode<SessionData> node;
+					LinkedListNode<T> node;
 					if (!_dic.TryGetValue (id, out node))
 						return null;
 
@@ -195,17 +262,17 @@ namespace Kazuki.Net.HttpServer.Middlewares
 				}
 			}
 
-			public void Set (string id, SessionData data)
+			public void Set (string id, T data)
 			{
-				SessionData pageout_data = null;
+				T pageout_data = null;
 
 				lock (_dic) {
-					LinkedListNode<SessionData> node;
+					LinkedListNode<T> node;
 					if (!_dic.TryGetValue (id, out node)) {
-						node = new LinkedListNode<SessionData> (data);
+						node = new LinkedListNode<T> (data);
 						if (_lru.Count == _capacity && _lru.Last != null && PageOut != null) {
 							pageout_data = _lru.Last.Value;
-							_dic.Remove (_lru.Last.Value.ID);
+							_dic.Remove (id);
 							_lru.Remove (_lru.Last);
 						}
 					} else {
@@ -219,7 +286,7 @@ namespace Kazuki.Net.HttpServer.Middlewares
 					return;
 
 				try {
-					PageOut (this, new SessionData[] {pageout_data});
+					PageOut (this, new T[] {pageout_data});
 				} catch {}
 			}
 
@@ -228,12 +295,13 @@ namespace Kazuki.Net.HttpServer.Middlewares
 				if (PageOut == null)
 					return;
 				lock (_dic) {
-					List<SessionData> list = new List<SessionData> (_lru);
+					List<T> list = new List<T> (_lru);
 					PageOut (this, list.ToArray ());
 				}
 			}
 		}
-		delegate void LRUPageOutEventHandler (object sender, SessionData[] outdata);
+		delegate void LRUPageOutEventHandler<T> (object sender, T[] outdata);
+#endif
 	}
 
 	public delegate IDbConnection CreateDatabaseConnectionDelegate ();

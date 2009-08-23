@@ -16,20 +16,15 @@
  */
 
 using System;
-using System.Collections.Generic;
-using System.Data;
 
 namespace Kazuki.Net.HttpServer
 {
-	public interface ISessionData
+	public interface ISessionTransaction : IDisposable
 	{
-		string ID { get; }
+		void Commit ();
+		void Rollback ();
 
-		ISessionTransaction BeginTransaction (IsolationLevel isolation);
 		object ReadState (string key);
-		object ReadState (string key, ISessionTransaction transaction);
-
 		void UpdateState (string key, object state);
-		void UpdateState (string key, object state, ISessionTransaction transaction);
 	}
 }
