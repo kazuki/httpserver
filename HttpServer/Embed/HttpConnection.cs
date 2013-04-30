@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright (C) 2009 Kazuki Oikawa
+ * Copyright (C) 2009,2013 Kazuki Oikawa
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,6 +16,7 @@
  */
 
 using System;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
 
@@ -67,15 +68,19 @@ namespace Kazuki.Net.HttpServer.Embed
 		}
 		bool FillReceiveBuffer ()
 		{
-			if (_recvOffset >= _recvFilled) {
-				if (!_sock.Poll (-1, SelectMode.SelectRead))
-					return false;
-				_recvFilled = _sock.Receive (_recvBuffer, 0, _recvBuffer.Length, SocketFlags.None);
-				_recvOffset = 0;
-				if (_recvFilled <= 0)
-					return false;
+			try {
+				if (_recvOffset >= _recvFilled) {
+					if (!_sock.Poll (-1, SelectMode.SelectRead))
+						return false;
+					_recvFilled = _sock.Receive(_recvBuffer, 0, _recvBuffer.Length, SocketFlags.None);
+					_recvOffset = 0;
+					if (_recvFilled <= 0)
+						return false;
+				}
+				return true;
+			} catch {
+				return false;
 			}
-			return true;
 		}
 		public void Send (byte[] raw)
 		{
@@ -91,6 +96,16 @@ namespace Kazuki.Net.HttpServer.Embed
 				if (ret <= 0)
 					throw new SocketException ();
 				sent += ret;
+			}
+		}
+		public void Send (Stream strm)
+		{
+			byte[] buffer = new byte[8192];
+			while (true) {
+				int ret = strm.Read (buffer, 0, buffer.Length);
+				if (ret <= 0)
+					break;
+				Send (buffer, 0, ret);
 			}
 		}
 		#endregion

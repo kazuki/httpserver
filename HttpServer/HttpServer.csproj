@@ -64,6 +64,8 @@
     <Compile Include="MIMEDatabase.cs" />
     <Compile Include="ServerHelper.cs" />
     <Compile Include="TemplateEngines\XslTemplateEngine.cs" />
+    <Compile Include="WebSocketEventArgs.cs" />
+    <Compile Include="WebSocketInfo.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

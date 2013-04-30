@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright (C) 2009 Kazuki Oikawa
+ * Copyright (C) 2009,2013 Kazuki Oikawa
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -35,6 +35,9 @@ namespace Kazuki.Net.HttpServer.Embed
 		Dictionary<Socket, HttpConnection> _keepAliveWaits = new Dictionary<Socket,HttpConnection> ();
 		ManualResetEvent _keepAliveWaitHandle = new ManualResetEvent (false);
 
+		Thread _wsThread;
+		Dictionary<Socket, WebSocketInfo> _wsDict = new Dictionary<Socket, WebSocketInfo>();
+
 		static NLog.Logger _logger = NLog.LogManager.GetCurrentClassLogger ();
 		static Encoding DefaultEncoding = Encoding.UTF8;
 
@@ -61,6 +64,9 @@ namespace Kazuki.Net.HttpServer.Embed
 			_listeners = listeners.ToArray ();
 			_keepAliveThread = new Thread (KeepAliveCheckThread);
 			_keepAliveThread.Start ();
+
+			_wsThread = new Thread(WebSocketThread);
+			_wsThread.Start();
 
 			StartAcceptThread ();
 		}
@@ -141,12 +147,21 @@ namespace Kazuki.Net.HttpServer.Embed
 				try {
 					bool keepAlive;
 					CometInfo cometInfo;
-					StartApplication (req, client, DefaultEncoding, out keepAlive, out cometInfo);
-					if (cometInfo == null) {
+					WebSocketInfo socketInfo;
+					StartApplication (req, client, DefaultEncoding, out keepAlive, out cometInfo, out socketInfo);
+					if (cometInfo == null && socketInfo == null) {
 						TerminateApplication (client, keepAlive);
 					} else {
-						cometInfo.Connection = client;
-						AddCometInfo (cometInfo);
+						if (cometInfo != null) {
+							cometInfo.Connection = client;
+							AddCometInfo(cometInfo);
+						} else if (socketInfo != null) {
+							socketInfo.Connection = client;
+							socketInfo.SendInternal = delegate(byte[] msg, int offset, int size) {
+								client.RawSocket.Send(msg, offset, size, SocketFlags.None);
+							};
+							AddSocketInfo(socketInfo);
+						}
 					}
 				} catch (Exception e) {
 					_logger.WarnException ("Unhandled Exception " + client.RemoteEndPoint.ToString (), e);
@@ -156,16 +171,18 @@ namespace Kazuki.Net.HttpServer.Embed
 			}
 		}
 
-		void StartApplication (IHttpRequest req, HttpConnection conn, Encoding encoding, out bool keepAlive, out CometInfo cometInfo)
+		void StartApplication (IHttpRequest req, HttpConnection conn, Encoding encoding, out bool keepAlive, out CometInfo cometInfo, out WebSocketInfo socketInfo)
 		{
 			bool header_sent = false;
 			HttpResponseHeader header = new HttpResponseHeader (req);
 			keepAlive = header.GetNotNullValue (HttpHeaderNames.Connection).ToLower ().Equals ("keep-alive");
 			cometInfo = null;
+			socketInfo = null;
 
 			try {
 				object result = _app.Process (this, req, header);
 				cometInfo = result as CometInfo;
+				socketInfo = result as WebSocketInfo;
 				if (cometInfo != null) return;
 				ProcessResponse (conn, req, header, result, ref keepAlive, ref header_sent);
 			} catch (Exception e) {
@@ -231,10 +248,14 @@ namespace Kazuki.Net.HttpServer.Embed
 		void ProcessResponse (HttpConnection conn, IHttpRequest req, HttpResponseHeader header, object result, ref bool keepAlive, ref bool header_sent)
 		{
 			byte[] rawBody = null;
+			bool webSocketMode = false;
 			if (result is Stream) {
 				try {
 					header[HttpHeaderNames.ContentLength] = (result as Stream).Length.ToString ();
 				} catch { }
+			} else if (result is WebSocketInfo) {
+				webSocketMode = true;
+				keepAlive = false;
 			} else {
 				rawBody = ResponseBodyToBytes (result);
 				header[HttpHeaderNames.ContentLength] = rawBody.Length.ToString ();
@@ -250,13 +271,12 @@ namespace Kazuki.Net.HttpServer.Embed
 			byte[] raw = header.CreateResponseHeaderBytes ();
 			header_sent = true;
 			conn.Send (raw);
-			if (req.HttpMethod == HttpMethod.HEAD)
+			if (req.HttpMethod == HttpMethod.HEAD || webSocketMode)
 				return;
 			if (rawBody != null) {
 				conn.Send (rawBody);
-			} else {
-				// TODO: impelements to send stream data
-				throw new NotImplementedException ();
+			} else if (result is Stream) {
+				conn.Send(result as Stream);
 			}
 		}
 
@@ -282,6 +302,122 @@ namespace Kazuki.Net.HttpServer.Embed
 			_keepAliveWaitHandle.Set ();
 			_keepAliveThread.Join ();
 			_keepAliveWaitHandle.Close ();
+		}
+
+		void AddSocketInfo(WebSocketInfo info)
+		{
+			lock (_wsDict) {
+				_wsDict.Add(((HttpConnection)info.Connection).RawSocket, info);
+			}
+		}
+
+		void WebSocketThread()
+		{
+			List<Socket> readList = new List<Socket>();
+			List<Socket> errList = new List<Socket>();
+			List<WebSocketInfo> closeList = new List<WebSocketInfo> ();
+
+			byte[] basic_header = new byte[2];
+			byte[] ext_payload_header = new byte[8];
+			byte[] ext_mask_header = new byte[4];
+			byte[] payload = new byte[1024 * 1024];
+
+			while (!_closed) {
+				readList.Clear(); errList.Clear();
+
+				lock (_wsDict) {
+					foreach (WebSocketInfo wsi in _wsDict.Values) {
+						HttpConnection c = (HttpConnection)wsi.Connection;
+						readList.Add(c.RawSocket);
+						errList.Add(c.RawSocket);
+					}
+				}
+
+				if (readList.Count != 0 || errList.Count != 0) {
+					Socket.Select(readList, null, errList, 1000);
+				} else {
+					Thread.Sleep(1);
+				}
+
+				foreach (Socket sock in readList) {
+					WebSocketInfo wi;
+					lock (_wsDict) {
+						if (!_wsDict.TryGetValue(sock, out wi))
+							continue;
+					}
+					HttpConnection c = (HttpConnection)wi.Connection;
+
+					// read header
+					if (c.ReceiveBytes(basic_header, 0, 2) != 2)
+						goto OnError;
+					bool mask = (basic_header[1] >= 0x80);
+					ulong payload_len = (ulong)(basic_header[1] & 0x7f);
+					if (payload_len == 126 || payload_len == 127) {
+						int ext_payload_header_len = (payload_len == 126 ? 2 : 8);
+						if (c.ReceiveBytes(ext_payload_header, 0, ext_payload_header_len) != ext_payload_header_len)
+							goto OnError;
+						if (ext_payload_header_len == 2) {
+							payload_len = (((ulong)ext_payload_header[0]) << 8) | (ulong)ext_payload_header[1];
+						} else {
+							payload_len = (((ulong)ext_payload_header[0]) << 58)
+								| (((ulong)ext_payload_header[1]) << 48)
+								| (((ulong)ext_payload_header[2]) << 40)
+								| (((ulong)ext_payload_header[3]) << 32)
+								| (((ulong)ext_payload_header[4]) << 24)
+								| (((ulong)ext_payload_header[5]) << 16)
+								| (((ulong)ext_payload_header[6]) << 8)
+								| (((ulong)ext_payload_header[7]) << 0);
+						}
+						if (payload_len > (ulong)int.MaxValue)
+							goto OnError; // support 0-2GB
+						if ((ulong)payload.Length < payload_len)
+							payload = new byte[(ulong)Math.Pow(2, Math.Ceiling(Math.Log((double)payload_len, 2)))];
+					}
+					if (mask) {
+						if (c.ReceiveBytes(ext_mask_header, 0, 4) != 4)
+							goto OnError;
+					}
+					if (c.ReceiveBytes(payload, 0, (int)payload_len) != (int)payload_len)
+						goto OnError;
+					if (mask) {
+						for (int i = 0; i < (int)payload_len; ++i) {
+							payload[i] ^= ext_mask_header[i & 3];
+						}
+					}
+
+					int opcode = basic_header[0] & 0xf;
+					if (opcode == 0x9) {
+						Console.WriteLine("recv ping");
+						wi.SendPong();
+						continue;
+					}
+
+					if (wi.Handler != null) {
+						try {
+							wi.Handler (this, new WebSocketEventArgs { Info = wi, Payload = payload, PayloadSize = (long)payload_len,
+								IsBinaryFrame = (opcode == 0x2), IsTextFrame = (opcode == 0x1), IsClose = (opcode == 0x8)});
+						} catch (Exception ex) {
+							Console.WriteLine(ex.ToString());
+						}
+					}
+
+					continue;
+				OnError:
+					closeList.Add(wi);
+				}
+
+				if (errList.Count > 0 || closeList.Count > 0) {
+					lock (_wsDict) {
+						for (int i = 0; i < errList.Count; ++i) {
+							closeList.Add(_wsDict[errList[i]]);
+							_wsDict.Remove(errList[i]);
+						}
+					}
+					for (int i = 0; i < closeList.Count; ++i)
+						((HttpConnection)closeList[i].Connection).Close();
+					closeList.Clear();
+				}
+			}
 		}
 	}
 }

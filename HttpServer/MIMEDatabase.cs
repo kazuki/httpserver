@@ -1,5 +1,5 @@
 ﻿/*
- * Copyright (C) 2009 Kazuki Oikawa
+ * Copyright (C) 2009,2013 Kazuki Oikawa
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -32,6 +32,7 @@ namespace Kazuki.Net.HttpServer
 			_mapping["css"] = "text/css";
 			_mapping["xml"] = "text/xml";
 			_mapping["html"] = "text/html";
+			_mapping["xhtml"] = "application/xhtml+xml";
 
 			_mapping["png"] = "image/png";
 			_mapping["jpg"] = _mapping["jpeg"] = "image/jpeg";
